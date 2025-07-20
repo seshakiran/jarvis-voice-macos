@@ -81,6 +81,29 @@
       "environment variables", "show environment", "env vars"
     ]
   },
+  "terminal_management": {
+    "show_terminals": [
+      "show terminals", "list terminals", "available terminals",
+      "what terminals", "terminal list", "show windows"
+    ],
+    "switch_target": [
+      "switch to", "use terminal", "send to", "target",
+      "set target", "change to", "use"
+    ],
+    "set_alias": [
+      "call this", "name this", "alias this", "set name"
+    ],
+    "show_target": [
+      "current target", "what target", "which terminal",
+      "target status"
+    ],
+    "send_text": [
+      "send text", "type", "say", "send", "write", "input"
+    ],
+    "send_response": [
+      "say yes", "say no", "answer yes", "answer no", "respond yes", "respond no"
+    ]
+  },
   "system_info": {
     "ps aux": [
       "show processes", "list processes", "running processes", "process list",

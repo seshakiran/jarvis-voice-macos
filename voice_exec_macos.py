@@ -15,7 +15,11 @@ import json
 import signal
 import threading
 import time
+import logging
 from pathlib import Path
+
+# Import terminal management
+from terminal_management import TerminalDiscovery, CommandRouter
 
 class VoiceTerminal:
     def __init__(self):
@@ -42,6 +46,20 @@ class VoiceTerminal:
         self.session_active = False
         self.session_timeout = 30  # seconds of inactivity before returning to wake word mode
         self.command_wait_timeout = 5  # seconds to wait for command before prompting (reduced)
+        
+        # Terminal management (Phase 1)
+        self.terminal_discovery = None
+        self.command_router = None
+        self.terminal_routing_enabled = self.config.get("terminal_routing", {}).get("enabled", False)
+        
+        if self.terminal_routing_enabled:
+            try:
+                self.terminal_discovery = TerminalDiscovery()
+                self.command_router = CommandRouter(self.terminal_discovery)
+                print("🔗 Terminal routing enabled")
+            except Exception as e:
+                print(f"⚠️  Terminal routing disabled due to error: {e}")
+                self.terminal_routing_enabled = False
         
     def speak(self, text):
         """Text-to-speech output"""
@@ -308,6 +326,10 @@ class VoiceTerminal:
                 elif query_lower in ["continue", "keep going", "stay active"]:
                     print("🔄 Staying active...")
                     continue
+                
+                # Handle terminal management commands first
+                if self.terminal_routing_enabled and self.handle_terminal_management_command(query):
+                    continue
                     
                 # Get shell command
                 command = self.get_shell_command(query)
@@ -326,6 +348,10 @@ class VoiceTerminal:
                     
                 print(f"💻 Suggested: {command}")
                 
+                # Security validation for terminal routing
+                if self.terminal_routing_enabled and not self.validate_command_safety(command, query):
+                    continue
+                
                 # Auto-confirm with timeout
                 if self.auto_confirm_with_timeout("Execute?"):
                     print("⚡ Executing command...")
@@ -334,11 +360,19 @@ class VoiceTerminal:
                     if any(cmd in command.lower() for cmd in ['find', 'grep', 'search', 'install', 'download']):
                         self.speak("Running command, this might take a moment")
                     
-                    self.execute_command(command)
-                    print("✅ Command completed")
-                    # Only speak completion for long-running commands
-                    if any(cmd in command.lower() for cmd in ['find', 'grep', 'search', 'install', 'download', 'git', 'npm']):
-                        self.speak("Done")
+                    # Check for contextual routing and execute appropriately
+                    if self.terminal_routing_enabled:
+                        success = self.execute_command_with_routing(command, query)
+                    else:
+                        success = self.execute_command(command)
+                        
+                    if success:
+                        print("✅ Command completed")
+                        # Only speak completion for long-running commands
+                        if any(cmd in command.lower() for cmd in ['find', 'grep', 'search', 'install', 'download', 'git', 'npm']):
+                            self.speak("Done")
+                    else:
+                        print("❌ Command execution failed")
                 else:
                     print("❌ Command cancelled")
                 
@@ -357,7 +391,18 @@ class VoiceTerminal:
         """Main loop with wake word detection and session mode"""
         wake_name = self.config["wake_word_name"].title()
         self.clear_screen()
-        self.speak(f"{wake_name} Voice Terminal Assistant ready")
+        
+        # Display startup status including terminal routing
+        startup_message = f"{wake_name} Voice Terminal Assistant ready"
+        if self.terminal_routing_enabled:
+            startup_message += " with multi-terminal support"
+            print("🔗 Multi-terminal routing enabled")
+            # Show initial terminal discovery
+            self.show_startup_terminals()
+        else:
+            print("📍 Local terminal mode")
+            
+        self.speak(startup_message)
         
         while True:
             try:
@@ -417,11 +462,361 @@ class VoiceTerminal:
             if result.stderr:
                 print(f"Error: {result.stderr}")
                 # Don't speak errors to avoid feedback
+                return False
+                
+            return True
                 
         except subprocess.TimeoutExpired:
             print("Command timed out")
+            return False
         except Exception as e:
             print(f"Execution failed: {str(e)}")
+            return False
+    
+    def handle_terminal_management_command(self, query):
+        """Handle terminal management specific commands"""
+        query_lower = query.lower().strip()
+        
+        # Show available terminals
+        if any(phrase in query_lower for phrase in ["show terminals", "list terminals", "available terminals", "what terminals"]):
+            self.show_available_terminals()
+            return True
+            
+        # Switch target terminal
+        if any(phrase in query_lower for phrase in ["switch to", "use terminal", "send to", "target", "set target", "change to"]):
+            target_name = self.extract_target_name(query_lower)
+            if target_name:
+                if self.command_router.set_target(target_name):
+                    current_target = self.command_router.get_current_target()
+                    self.speak(f"Now targeting {current_target}")
+                    print(f"🎯 Target set to: {current_target}")
+                else:
+                    self.speak(f"Could not find terminal {target_name}")
+                    print(f"❌ Terminal '{target_name}' not found")
+            return True
+            
+        # Set terminal alias
+        if any(phrase in query_lower for phrase in ["call this", "name this", "alias this", "set name"]):
+            alias_name = self.extract_alias_name(query_lower)
+            if alias_name:
+                current_target = self.command_router.get_current_target()
+                if not current_target.is_local and self.terminal_discovery.set_terminal_alias(current_target.identifier, alias_name):
+                    self.speak(f"Named this terminal {alias_name}")
+                    print(f"📛 Set alias '{alias_name}' for current terminal")
+                else:
+                    self.speak("Could not set alias")
+                    print("❌ Failed to set terminal alias")
+            return True
+            
+        # Show current target
+        if any(phrase in query_lower for phrase in ["current target", "what target", "which terminal", "target status"]):
+            current_target = self.command_router.get_current_target()
+            self.speak(f"Current target is {current_target}")
+            print(f"🎯 Current target: {current_target}")
+            return True
+        
+        # Send arbitrary text to terminal
+        if any(phrase in query_lower for phrase in ["send text", "type", "say", "send", "write", "input"]):
+            self.handle_send_text_command(query_lower)
+            return True
+            
+        # Send yes/no responses
+        if any(phrase in query_lower for phrase in ["say yes", "say no", "answer yes", "answer no", "respond yes", "respond no"]):
+            self.handle_response_command(query_lower)
+            return True
+            
+        return False
+    
+    def show_available_terminals(self):
+        """Display available terminals with voice feedback and interactive selection"""
+        terminals = self.terminal_discovery.get_available_terminals(force_refresh=True)
+        
+        if not terminals:
+            self.speak("No terminals found")
+            print("❌ No terminals available")
+            return
+            
+        print("\n📱 Available Terminals:")
+        terminal_list = []
+        
+        # Add local option
+        print(f"  0. 🏠 Local Terminal (current)")
+        
+        for i, terminal_info in enumerate(terminals, 1):
+            terminal = terminal_info.window
+            display_name = terminal.display_name
+            status_icon = "✅" if terminal_info.status.value == "available" else "❌"
+            working_dir = f" ({terminal.working_directory})" if terminal.working_directory else ""
+            
+            print(f"  {i}. {status_icon} {display_name}{working_dir}")
+            terminal_list.append(terminal.display_name)
+            
+        # Show current target
+        current_target = self.command_router.get_current_target()
+        print(f"\n🎯 Current target: {current_target}")
+        
+        # Provide voice summary and offer selection
+        if len(terminals) == 0:
+            self.speak("Only local terminal available")
+        elif len(terminals) == 1:
+            self.speak(f"Found 1 terminal: {terminal_list[0]}. Say 'switch to' and a number or name to change target.")
+        else:
+            self.speak(f"Found {len(terminals)} terminals available. Say 'switch to' and a number or name to change target.")
+        
+        return terminals
+    
+    def extract_target_name(self, query):
+        """Extract target terminal name from voice command"""
+        # Remove command phrases to get the target name
+        phrases_to_remove = ["switch to", "use terminal", "send to", "target", "set target", "change to", "use"]
+        
+        target_name = query
+        for phrase in phrases_to_remove:
+            if phrase in target_name:
+                target_name = target_name.replace(phrase, "").strip()
+        
+        # Handle number references
+        if target_name.isdigit():
+            terminal_num = int(target_name)
+            if terminal_num == 0:
+                return "local"
+            
+            # Get terminals and find by number
+            terminals = self.terminal_discovery.get_available_terminals()
+            if terminal_num <= len(terminals):
+                return terminals[terminal_num - 1].window.display_name
+        
+        # Handle word numbers
+        number_words = {
+            "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+            "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10
+        }
+        
+        for word, num in number_words.items():
+            if word in target_name:
+                if num == 0:
+                    return "local"
+                terminals = self.terminal_discovery.get_available_terminals()
+                if num <= len(terminals):
+                    return terminals[num - 1].window.display_name
+        
+        return target_name if target_name else None
+    
+    def show_startup_terminals(self):
+        """Show discovered terminals at startup"""
+        try:
+            terminals = self.terminal_discovery.get_available_terminals(force_refresh=True)
+            if terminals:
+                print(f"📱 Discovered {len(terminals)} terminal(s):")
+                for terminal_info in terminals:
+                    terminal = terminal_info.window
+                    status_icon = "✅" if terminal_info.status.value == "available" else "❌"
+                    print(f"   {status_icon} {terminal.display_name}")
+            else:
+                print("📱 No external terminals found")
+        except Exception as e:
+            print(f"⚠️  Terminal discovery error: {e}")
+    
+    def handle_send_text_command(self, query):
+        """Handle sending arbitrary text to terminals"""
+        # Parse the command to extract target and text
+        target_terminal, text_to_send = self.parse_send_text_command(query)
+        
+        if not text_to_send:
+            self.speak("What text should I send?")
+            print("❓ No text specified to send")
+            return
+        
+        if target_terminal:
+            # Send to specific terminal
+            success, message = self.command_router.send_raw_text(text_to_send, target_terminal)
+            if success:
+                self.speak(f"Sent text to {target_terminal}")
+                print(f"📤 {message}")
+            else:
+                self.speak("Failed to send text")
+                print(f"❌ {message}")
+        else:
+            # Send to current target
+            success, message = self.command_router.send_raw_text(text_to_send)
+            if success:
+                self.speak("Text sent")
+                print(f"📤 {message}")
+            else:
+                self.speak("Failed to send text")
+                print(f"❌ {message}")
+    
+    def handle_response_command(self, query):
+        """Handle yes/no responses"""
+        target_terminal = None
+        response_text = "yes"
+        
+        # Extract target if specified
+        if "to terminal" in query or "to " in query:
+            target_terminal = self.extract_response_target(query)
+        
+        # Determine response
+        if "no" in query:
+            response_text = "no"
+        
+        if target_terminal:
+            success, message = self.command_router.send_raw_text(response_text, target_terminal)
+            if success:
+                self.speak(f"Sent {response_text} to {target_terminal}")
+                print(f"📤 {message}")
+            else:
+                self.speak("Failed to send response")
+                print(f"❌ {message}")
+        else:
+            success, message = self.command_router.send_raw_text(response_text)
+            if success:
+                self.speak(f"Sent {response_text}")
+                print(f"📤 {message}")
+            else:
+                self.speak("Failed to send response")
+                print(f"❌ {message}")
+    
+    def parse_send_text_command(self, query):
+        """Parse send text command to extract target and text"""
+        # Patterns: "send text hello to terminal 1", "type hello", "say hello to vs code"
+        
+        # Remove command phrases
+        text_query = query
+        for phrase in ["send text", "type", "say", "send", "write", "input"]:
+            if phrase in text_query:
+                text_query = text_query.replace(phrase, "").strip()
+                break
+        
+        # Check for target specification
+        target_terminal = None
+        text_to_send = text_query
+        
+        if " to terminal" in text_query or " to " in text_query:
+            parts = text_query.split(" to ", 1)
+            if len(parts) == 2:
+                text_to_send = parts[0].strip()
+                target_part = parts[1].strip()
+                
+                # Clean up target part
+                target_part = target_part.replace("terminal ", "").strip()
+                target_terminal = target_part
+        
+        return target_terminal, text_to_send
+    
+    def extract_response_target(self, query):
+        """Extract target terminal from response command"""
+        if " to terminal " in query:
+            parts = query.split(" to terminal ", 1)
+            if len(parts) == 2:
+                return parts[1].strip()
+        elif " to " in query:
+            parts = query.split(" to ", 1)
+            if len(parts) == 2:
+                target = parts[1].strip()
+                # Remove common words
+                target = target.replace("terminal ", "").strip()
+                return target
+        return None
+    
+    def extract_alias_name(self, query):
+        """Extract alias name from voice command"""
+        phrases_to_remove = ["call this", "name this", "alias this", "set name", "to"]
+        
+        for phrase in phrases_to_remove:
+            if phrase in query:
+                return query.replace(phrase, "").strip()
+        
+        return None
+    
+    def validate_command_safety(self, command, original_query):
+        """Validate command safety with user confirmation for dangerous operations"""
+        if not self.command_router:
+            return True
+        
+        # Determine target terminal
+        target, parsed_command = self.command_router.parse_contextual_command(original_query)
+        if target:
+            terminal = self.terminal_discovery.get_terminal_by_name(target)
+            if terminal:
+                target_window = terminal.window
+            else:
+                return True  # If target not found, let the router handle it
+        else:
+            current_target = self.command_router.get_current_target()
+            if current_target.is_local:
+                return True  # Local execution, no special validation
+            target_window = current_target.terminal_window
+        
+        if not target_window:
+            return True
+        
+        # Validate the command
+        is_safe, warning = self.command_router.validate_command(command, target_window)
+        
+        if not is_safe:
+            print(f"⚠️  Security Warning: {warning}")
+            self.speak("Security warning detected")
+            
+            if target_window.is_remote:
+                self.speak("This command will run on a remote session. Are you sure?")
+                confirm_msg = f"⚠️  Execute potentially dangerous command on remote session?"
+            else:
+                self.speak("This command could be dangerous. Are you sure?")
+                confirm_msg = f"⚠️  Execute potentially dangerous command?"
+            
+            # Require explicit confirmation (no timeout)
+            confirmed = self.get_explicit_confirmation(confirm_msg)
+            if not confirmed:
+                print("❌ Command cancelled for safety")
+                self.speak("Command cancelled for safety")
+                return False
+            else:
+                print("⚠️  User confirmed dangerous command")
+                self.speak("Proceeding with caution")
+        
+        return True
+    
+    def get_explicit_confirmation(self, prompt):
+        """Get explicit user confirmation without timeout"""
+        print(f"{prompt} [y/N]: ", end="", flush=True)
+        try:
+            user_input = input().lower().strip()
+            return user_input in ['y', 'yes']
+        except (EOFError, KeyboardInterrupt):
+            return False
+    
+    def execute_command_with_routing(self, command, original_query):
+        """Execute command with terminal routing support"""
+        if not self.command_router:
+            return self.execute_command(command)
+        
+        # Check for contextual routing in original query
+        target, parsed_command = self.command_router.parse_contextual_command(original_query)
+        
+        if target:
+            # Contextual command detected
+            success, message = self.command_router.route_command(parsed_command, target)
+            if success:
+                print(f"📤 {message}")
+                return True
+            elif "Use local execution" in message:
+                # Fallback to local execution
+                return self.execute_command(command)
+            else:
+                print(f"❌ {message}")
+                return False
+        else:
+            # Use current target
+            success, message = self.command_router.route_command(command)
+            if success:
+                print(f"📤 {message}")
+                return True
+            elif "Use local execution" in message:
+                # Fallback to local execution
+                return self.execute_command(command)
+            else:
+                print(f"❌ {message}")
+                return False
 
 if __name__ == "__main__":
     assistant = VoiceTerminal()
