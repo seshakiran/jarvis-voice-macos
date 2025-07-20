@@ -276,7 +276,7 @@ class MultiTerminalVoiceAssistant:
     def handle_voice_command(self, parsed_command: Dict[str, Any]) -> bool:
         """Handle parsed voice command. Returns True to continue session."""
         action = parsed_command["action"]
-        text = parsed_command["text"]
+        text = parsed_command.get("text", "")
         
         if action == "sleep":
             self.speak("Going to sleep. Say the wake word to wake me up.")
