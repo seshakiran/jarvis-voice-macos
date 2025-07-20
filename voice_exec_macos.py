@@ -205,6 +205,17 @@ class VoiceTerminal:
         """Advanced command mapping using external JSON file"""
         query_lower = query.lower().strip()
         
+        # Clean up query by removing wake word references if present
+        wake_phrases = self.config.get("wake_phrases", [])
+        for wake_phrase in wake_phrases:
+            if wake_phrase in query_lower:
+                query_lower = query_lower.replace(wake_phrase, "").strip()
+        
+        # Remove common filler words
+        filler_words = ["hey", "please", "can you", "could you", "would you"]
+        for filler in filler_words:
+            query_lower = query_lower.replace(filler, "").strip()
+        
         # Load mappings if not already loaded
         if not hasattr(self, 'command_mappings'):
             self.command_mappings = self.load_command_mappings()

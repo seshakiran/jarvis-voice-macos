@@ -68,7 +68,8 @@
     ],
     "clear": [
       "clear screen", "clear the screen", "cls", "clear terminal",
-      "clean screen", "clear display"
+      "clean screen", "clear display", "cleared screen", "screen clear",
+      "clean terminal", "refresh screen"
     ],
     "history": [
       "command history", "show history", "past commands", "recent commands"
@@ -83,7 +84,7 @@
   "system_info": {
     "ps aux": [
       "show processes", "list processes", "running processes", "process list",
-      "what's running", "active processes"
+      "what's running", "active processes", "processes", "show process"
     ],
     "top": [
       "system monitor", "resource usage", "cpu usage", "memory usage", "performance"
