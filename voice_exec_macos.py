@@ -48,8 +48,8 @@ class VoiceTerminal:
         print(f"🔊 {text}")
         self.engine.say(text)
         self.engine.runAndWait()
-        # Add delay after TTS to prevent microphone pickup
-        time.sleep(1)
+        # Add longer delay after TTS to prevent microphone pickup
+        time.sleep(2)
         
     def load_config(self):
         """Load configuration from file"""
@@ -92,14 +92,19 @@ class VoiceTerminal:
                 user_input = input().lower().strip()
                 result['input_received'] = True
                 result['confirmed'] = user_input in ['y', 'yes']
-            except:
-                pass
+            except (EOFError, KeyboardInterrupt):
+                result['input_received'] = True
+                result['confirmed'] = False
                 
         input_thread = threading.Thread(target=get_input)
         input_thread.daemon = True
         input_thread.start()
-        input_thread.join(timeout)
         
+        # Use time.sleep instead of join for more reliable timeout
+        start_time = time.time()
+        while time.time() - start_time < timeout and not result['input_received']:
+            time.sleep(0.1)
+            
         if not result['input_received']:
             print("\n⏰ Auto-confirming due to timeout...")
             result['confirmed'] = True
@@ -139,12 +144,16 @@ class VoiceTerminal:
             
             # Check if there's actual audio (not just silence)
             max_amplitude = float(recording.max())
-            if max_amplitude > threshold:
+            # Higher threshold to avoid picking up TTS feedback
+            speech_threshold = max(threshold, 0.02)
+            
+            if max_amplitude > speech_threshold:
                 audio_file = self.temp_dir / "voice_input.wav"
                 sf.write(audio_file, recording, samplerate)
                 return str(audio_file)
             else:
-                print("🔇 No speech detected")
+                if not silent_mode:
+                    print("🔇 No speech detected")
                 return None
                 
         except Exception as e:
@@ -325,7 +334,7 @@ class VoiceTerminal:
                 # Check session timeout
                 if time.time() - session_start > self.session_timeout:
                     print("\n⏰ Session timeout. Returning to wake word mode...")
-                    self.speak("Session timeout. Going back to sleep mode")
+                    self.speak("Going to sleep")
                     self.session_active = False
                     
             except Exception as e:
@@ -389,18 +398,19 @@ class VoiceTerminal:
             
             if result.stdout:
                 print(result.stdout)
-                # Speak only first line to avoid TTS spam
-                first_line = result.stdout.split('\n')[0]
-                self.speak(f"Output: {first_line}")
+                # Only speak output for short results to avoid TTS feedback
+                first_line = result.stdout.split('\n')[0].strip()
+                if len(first_line) < 50:  # Only speak short outputs
+                    self.speak(f"Output: {first_line}")
                 
             if result.stderr:
                 print(f"Error: {result.stderr}")
-                self.speak("Command had errors")
+                # Don't speak errors to avoid feedback
                 
         except subprocess.TimeoutExpired:
-            self.speak("Command timed out")
+            print("Command timed out")
         except Exception as e:
-            self.speak(f"Execution failed: {str(e)}")
+            print(f"Execution failed: {str(e)}")
 
 if __name__ == "__main__":
     assistant = VoiceTerminal()

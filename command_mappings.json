@@ -4,7 +4,8 @@
       "list files", "show files", "list directory", "show directory",
       "list all files", "show all files", "files in directory",
       "what files", "see files", "display files", "files here",
-      "contents of directory", "directory contents"
+      "contents of directory", "directory contents", "list on the files",
+      "show me files", "files in this directory"
     ],
     "ls": [
       "list", "show contents", "quick list"
@@ -64,6 +65,19 @@
     ],
     "chmod +x": [
       "make executable", "executable permission", "add execute permission"
+    ],
+    "clear": [
+      "clear screen", "clear the screen", "cls", "clear terminal",
+      "clean screen", "clear display"
+    ],
+    "history": [
+      "command history", "show history", "past commands", "recent commands"
+    ],
+    "which": [
+      "which command", "where is", "find command", "locate command"
+    ],
+    "env": [
+      "environment variables", "show environment", "env vars"
     ]
   },
   "system_info": {
