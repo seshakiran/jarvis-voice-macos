@@ -81,6 +81,8 @@ class CommandRouter:
                 success = self._send_to_iterm2(target_window, command)
             elif target_window.app_type == TerminalApp.VSCODE:
                 success = self._send_to_vscode(command)
+            elif target_window.app_type == TerminalApp.WARP:
+                success = self._send_to_warp(target_window, command)
             else:
                 return False, f"Unsupported terminal type: {target_window.app_type}"
             
@@ -115,6 +117,20 @@ class CommandRouter:
     def _send_to_vscode(self, command: str) -> bool:
         """Send command to VS Code integrated terminal"""
         return self.applescript.send_to_vscode(command)
+    
+    def _send_to_warp(self, terminal: TerminalWindow, command: str) -> bool:
+        """Send command to Warp terminal"""
+        window_number = terminal.session_info.get("window_number", 1)
+        
+        # Try UI scripting first (for existing windows)
+        success = self.applescript.send_to_warp_via_ui_scripting(command, window_number)
+        
+        # If UI scripting fails, try launch configuration as fallback
+        if not success:
+            logger.warning("Warp UI scripting failed, trying launch configuration method")
+            success = self.applescript.send_to_warp_via_launch_config(command, terminal.id)
+        
+        return success
     
     def _add_to_history(self, terminal_id: str, command: str) -> None:
         """Add command to terminal's history"""
@@ -255,6 +271,8 @@ class CommandRouter:
                 success = self._send_text_to_iterm2(target_window, text)
             elif target_window.app_type == TerminalApp.VSCODE:
                 success = self._send_text_to_vscode(text)
+            elif target_window.app_type == TerminalApp.WARP:
+                success = self._send_text_to_warp(target_window, text)
             else:
                 return False, f"Unsupported terminal type: {target_window.app_type}"
             
@@ -289,6 +307,11 @@ class CommandRouter:
     def _send_text_to_vscode(self, text: str) -> bool:
         """Send raw text to VS Code integrated terminal"""
         return self.applescript.send_text_to_vscode(text)
+    
+    def _send_text_to_warp(self, terminal: TerminalWindow, text: str) -> bool:
+        """Send raw text to Warp terminal"""
+        window_number = terminal.session_info.get("window_number", 1)
+        return self.applescript.send_to_warp_via_ui_scripting(text, window_number)
     
     def get_target_status(self) -> Dict[str, Any]:
         """Get current routing status"""

@@ -5,7 +5,7 @@ Provides multi-terminal voice command routing capabilities for Jarvis Voice Assi
 Enables sending voice commands to different terminal windows and applications.
 """
 
-from .terminal_models import TerminalWindow, TerminalInfo
+from .terminal_models import TerminalWindow, TerminalInfo, TerminalStatus, TerminalApp, TerminalTarget
 from .terminal_discovery import TerminalDiscovery
 from .command_router import CommandRouter
 from .applescript_bridge import AppleScriptBridge
@@ -13,7 +13,10 @@ from .applescript_bridge import AppleScriptBridge
 __version__ = "1.0.0"
 __all__ = [
     "TerminalWindow",
-    "TerminalInfo", 
+    "TerminalInfo",
+    "TerminalStatus",
+    "TerminalApp", 
+    "TerminalTarget",
     "TerminalDiscovery",
     "CommandRouter",
     "AppleScriptBridge"

@@ -16,6 +16,10 @@ class TerminalApp(Enum):
     TERMINAL = "Terminal"
     ITERM2 = "iTerm2"
     VSCODE = "Visual Studio Code"
+    WARP = "Warp"
+    ALACRITTY = "Alacritty"
+    KITTY = "Kitty"
+    HYPER = "Hyper"
     UNKNOWN = "Unknown"
 
 @dataclass

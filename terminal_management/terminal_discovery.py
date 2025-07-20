@@ -78,6 +78,30 @@ class TerminalDiscovery:
         except Exception as e:
             logger.error(f"Failed to discover iTerm2 sessions: {e}")
         
+        # Discover Warp windows
+        try:
+            warp_windows = self.applescript.get_warp_windows()
+            for window in warp_windows:
+                # Check for user alias
+                if window.id in [t_id for alias, t_id in self.user_aliases.items()]:
+                    for alias, t_id in self.user_aliases.items():
+                        if t_id == window.id:
+                            window.user_alias = alias
+                            break
+                
+                terminal_info = TerminalInfo(
+                    window=window,
+                    status=TerminalStatus.AVAILABLE,
+                    last_command=None,
+                    command_history=[],
+                    response_time=None,
+                    last_activity=None
+                )
+                terminals.append(terminal_info)
+                
+        except Exception as e:
+            logger.error(f"Failed to discover Warp windows: {e}")
+
         # Add VS Code if running
         try:
             if self.applescript.is_application_running("Visual Studio Code"):
@@ -157,6 +181,11 @@ class TerminalDiscovery:
         if name.lower() in ["iterm", "iterm2"]:
             for terminal in terminals:
                 if terminal.window.app_type == TerminalApp.ITERM2:
+                    return terminal
+        
+        if name.lower() in ["warp"]:
+            for terminal in terminals:
+                if terminal.window.app_type == TerminalApp.WARP:
                     return terminal
         
         return None
