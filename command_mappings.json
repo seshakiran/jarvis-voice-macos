@@ -1,0 +1,204 @@
+{
+  "file_operations": {
+    "ls -la": [
+      "list files", "show files", "list directory", "show directory",
+      "list all files", "show all files", "files in directory",
+      "what files", "see files", "display files", "files here",
+      "contents of directory", "directory contents"
+    ],
+    "ls": [
+      "list", "show contents", "quick list"
+    ],
+    "ls -l": [
+      "list files detailed", "detailed list", "long list"
+    ],
+    "pwd": [
+      "current directory", "working directory", "where am i", 
+      "what directory", "current folder", "which directory",
+      "current path", "present working directory"
+    ],
+    "cd ~": [
+      "home directory", "go home", "home folder", "change to home",
+      "navigate to home"
+    ],
+    "cd ..": [
+      "go back", "parent directory", "up one level", "back directory",
+      "go up", "previous directory"
+    ],
+    "mkdir {name}": [
+      "create directory", "make directory", "new folder", "create folder",
+      "make folder"
+    ],
+    "rmdir {name}": [
+      "remove directory", "delete directory", "remove folder", "delete folder"
+    ],
+    "rm {file}": [
+      "delete file", "remove file", "delete"
+    ],
+    "rm -rf {name}": [
+      "force delete", "delete everything", "remove everything", "force remove"
+    ],
+    "cp {source} {dest}": [
+      "copy file", "copy", "duplicate file"
+    ],
+    "mv {source} {dest}": [
+      "move file", "rename file", "move", "rename"
+    ],
+    "touch {file}": [
+      "create file", "new file", "make file", "create empty file"
+    ],
+    "cat {file}": [
+      "show file", "display file", "read file", "view file", "file content"
+    ],
+    "head {file}": [
+      "first lines", "beginning of file", "file start", "top of file"
+    ],
+    "tail {file}": [
+      "last lines", "end of file", "file end", "bottom of file"
+    ],
+    "find . -name": [
+      "find file", "search file", "locate file", "find by name"
+    ],
+    "grep": [
+      "search in file", "find text", "search text", "grep"
+    ],
+    "chmod +x": [
+      "make executable", "executable permission", "add execute permission"
+    ]
+  },
+  "system_info": {
+    "ps aux": [
+      "show processes", "list processes", "running processes", "process list",
+      "what's running", "active processes"
+    ],
+    "top": [
+      "system monitor", "resource usage", "cpu usage", "memory usage", "performance"
+    ],
+    "htop": [
+      "better top", "interactive monitor", "system resources"
+    ],
+    "df -h": [
+      "disk space", "storage space", "available space", "free space",
+      "disk usage", "storage usage"
+    ],
+    "du -h": [
+      "directory size", "folder size", "space used", "disk usage here"
+    ],
+    "free -h": [
+      "memory usage", "ram usage", "available memory", "free memory"
+    ],
+    "uname -a": [
+      "system info", "system information", "about system", "system details",
+      "operating system", "os info"
+    ],
+    "whoami": [
+      "current user", "username", "who am i", "my username"
+    ],
+    "id": [
+      "user id", "user info", "user details"
+    ],
+    "uptime": [
+      "system uptime", "how long running", "uptime"
+    ],
+    "date": [
+      "current date", "current time", "what time", "date and time"
+    ]
+  },
+  "network": {
+    "ping": [
+      "ping", "test connection", "check connection", "network test"
+    ],
+    "curl": [
+      "download", "fetch url", "web request", "http request"
+    ],
+    "wget": [
+      "download file", "get file", "fetch file"
+    ],
+    "netstat": [
+      "network connections", "open ports", "network status"
+    ],
+    "ifconfig": [
+      "network config", "ip address", "network interface", "network settings"
+    ]
+  },
+  "text_processing": {
+    "wc -l": [
+      "count lines", "line count", "number of lines"
+    ],
+    "wc -w": [
+      "count words", "word count", "number of words"
+    ],
+    "sort": [
+      "sort lines", "alphabetical order", "sort file"
+    ],
+    "uniq": [
+      "unique lines", "remove duplicates", "unique only"
+    ],
+    "cut": [
+      "extract columns", "get field", "column extract"
+    ]
+  },
+  "archive": {
+    "tar -czf": [
+      "create archive", "compress folder", "make tar", "archive directory"
+    ],
+    "tar -xzf": [
+      "extract archive", "uncompress", "untar", "extract tar"
+    ],
+    "zip": [
+      "create zip", "compress to zip", "make zip file"
+    ],
+    "unzip": [
+      "extract zip", "unzip file", "decompress zip"
+    ]
+  },
+  "git": {
+    "git status": [
+      "git status", "repo status", "git state", "repository status"
+    ],
+    "git add .": [
+      "git add all", "stage all", "add all files"
+    ],
+    "git commit -m": [
+      "git commit", "commit changes", "save changes"
+    ],
+    "git push": [
+      "git push", "push changes", "upload changes"
+    ],
+    "git pull": [
+      "git pull", "pull changes", "download changes", "update repo"
+    ],
+    "git log": [
+      "git log", "commit history", "git history"
+    ],
+    "git diff": [
+      "git diff", "show changes", "differences"
+    ],
+    "git clone": [
+      "git clone", "clone repository", "download repo"
+    ]
+  },
+  "package_management": {
+    "brew install": [
+      "install package", "brew install", "install with brew"
+    ],
+    "brew update": [
+      "update brew", "brew update", "update packages"
+    ],
+    "npm install": [
+      "npm install", "install npm package", "node install"
+    ],
+    "pip install": [
+      "pip install", "install python package", "python install"
+    ],
+    "apt install": [
+      "apt install", "install with apt", "debian install"
+    ]
+  },
+  "conversational": [
+    "thinking", "just thinking", "i'm thinking", "thinking aloud",
+    "nothing", "never mind", "forget it", "not sure",
+    "hello", "hi", "thanks", "thank you", "okay", "alright",
+    "i don't know", "hmm", "well", "uh", "um"
+  ]
+}

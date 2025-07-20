@@ -1,0 +1,6 @@
+shell-genie
+openai-whisper
+sounddevice
+soundfile
+pydub
+pyttsx3
