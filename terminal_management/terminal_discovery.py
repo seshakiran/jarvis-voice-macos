@@ -183,7 +183,7 @@ class TerminalDiscovery:
                 if terminal.window.app_type == TerminalApp.ITERM2:
                     return terminal
         
-        if name.lower() in ["warp"]:
+        if name.lower() in ["warp", "test", "test tab", "warp tab"]:
             for terminal in terminals:
                 if terminal.window.app_type == TerminalApp.WARP:
                     return terminal

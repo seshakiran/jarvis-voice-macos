@@ -221,7 +221,13 @@ class CommandRouter:
                     "terminal two": "Terminal:2",
                     "terminal 2": "Terminal:2",
                     "iterm": "iTerm2",
-                    "main session": "iTerm2"
+                    "main session": "iTerm2",
+                    "warp": "Warp:1",
+                    "warp 1": "Warp:1",
+                    "warp 2": "Warp:2",
+                    "warp tab": "Warp:1",
+                    "test tab": "Warp:1",
+                    "test": "Warp:1"
                 }
                 
                 if target_part in target_aliases:

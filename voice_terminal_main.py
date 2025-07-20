@@ -190,10 +190,21 @@ class MultiTerminalVoiceAssistant:
             target = text_lower.replace("switch to ", "").replace("use ", "")
             return {"action": "switch_target", "target": target, "text": text}
         
-        # Check for contextual commands (e.g., "in VS Code, run npm start")
+        # Check for contextual commands (e.g., "in VS Code, run npm start" or "send hello to warp")
         target, command = self.router.parse_contextual_command(text)
         if target:
             return {"action": "contextual_command", "target": target, "command": command, "text": text}
+        
+        # Check for send/text commands to specific terminals
+        if any(phrase in text_lower for phrase in ["send", "type", "say", "write"]) and any(term in text_lower for term in ["to", "in", "on"]):
+            # Try to extract target and text: "send hello to warp"
+            parts = text_lower.split()
+            if "to" in parts:
+                to_index = parts.index("to")
+                if to_index > 0 and to_index < len(parts) - 1:
+                    target_name = " ".join(parts[to_index + 1:])
+                    text_to_send = " ".join(parts[1:to_index])  # Skip first word (send/type/etc)
+                    return {"action": "send_text", "target": target_name, "text_content": text_to_send, "original": text}
         
         # Regular command
         return {"action": "command", "text": text}
@@ -204,20 +215,31 @@ class MultiTerminalVoiceAssistant:
         query_lower = natural_query.lower()
         
         for category, commands in self.command_mappings.items():
-            for command, patterns in commands.items():
-                for pattern in patterns:
-                    if pattern.lower() in query_lower:
-                        # Handle parameterized commands
-                        if "{" in command:
-                            # Simple parameter extraction
-                            words = query_lower.split()
-                            if "folder" in pattern and len(words) > 2:
-                                folder_name = words[-1]
-                                return command.replace("{name}", folder_name)
-                            elif "file" in pattern and len(words) > 2:
-                                file_name = words[-1]
-                                return command.replace("{file}", file_name)
-                        return command
+            # Skip conversational patterns (they're just a list, not commands)
+            if category == "conversational":
+                if isinstance(commands, list):
+                    # Check if this is just conversational - return None to ignore
+                    if any(phrase in query_lower for phrase in commands):
+                        return None
+                continue
+            
+            # Process command mappings (dict format)
+            if isinstance(commands, dict):
+                for command, patterns in commands.items():
+                    if isinstance(patterns, list):
+                        for pattern in patterns:
+                            if pattern.lower() in query_lower:
+                                # Handle parameterized commands
+                                if "{" in command:
+                                    # Simple parameter extraction
+                                    words = query_lower.split()
+                                    if "folder" in pattern and len(words) > 2:
+                                        folder_name = words[-1]
+                                        return command.replace("{name}", folder_name)
+                                    elif "file" in pattern and len(words) > 2:
+                                        file_name = words[-1]
+                                        return command.replace("{file}", file_name)
+                                return command
         
         # Fallback to shell-genie if available
         try:
@@ -295,6 +317,22 @@ class MultiTerminalVoiceAssistant:
                     self.speak(f"Failed to send command: {message}")
             else:
                 self.speak("Could not understand the command")
+            return True
+        
+        elif action == "send_text":
+            target_name = parsed_command["target"]
+            text_content = parsed_command["text_content"]
+            
+            # Find the terminal by name
+            terminal = self.discovery.get_terminal_by_name(target_name)
+            if terminal:
+                success, message = self.router.send_raw_text(text_content, terminal.window.id)
+                if success:
+                    self.speak(f"Sent '{text_content}' to {terminal.window.display_name}")
+                else:
+                    self.speak(f"Failed to send text: {message}")
+            else:
+                self.speak(f"Could not find terminal: {target_name}")
             return True
         
         elif action == "command":
