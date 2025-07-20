@@ -92,9 +92,38 @@ class VoiceTerminal:
             print(f"Warning: Could not save config: {e}")
             
     def detect_wake_word(self, text):
-        """Check if text contains wake word"""
+        """Check if text contains wake word with fuzzy matching"""
         text_lower = text.lower().strip()
-        return any(phrase in text_lower for phrase in self.config["wake_phrases"])
+        
+        # Exact match first
+        for phrase in self.config["wake_phrases"]:
+            if phrase in text_lower:
+                return True
+        
+        # Fuzzy matching for common misheard variations
+        wake_variations = [
+            # Common variations of "hey jarvis"
+            "hey jarvis", "a jarvis", "hey jarvice", "hey jervis", 
+            "ay jarvis", "hey jarvas", "hey jarbis", "jarvis",
+            "harvis", "jarviss", "jervis", "jarbis"
+        ]
+        
+        # Also add configured wake phrases
+        wake_variations.extend(self.config.get("wake_phrases", []))
+        
+        # Check for variations
+        for variation in wake_variations:
+            if variation in text_lower:
+                return True
+                
+        # Check for partial matches (at least 70% similarity)
+        import difflib
+        for phrase in self.config["wake_phrases"]:
+            similarity = difflib.SequenceMatcher(None, phrase, text_lower).ratio()
+            if similarity >= 0.7:
+                return True
+                
+        return False
         
     def auto_confirm_with_timeout(self, prompt, timeout=None):
         """Get user confirmation with auto-timeout"""
@@ -139,7 +168,7 @@ class VoiceTerminal:
         
     def record_voice_activated(self, threshold=0.01, max_duration=10, silent_mode=False, timeout=None):
         """
-        Records audio with voice activation detection - simplified version
+        Records audio with voice activation detection - simplified version with better error handling
         """
         if not silent_mode:
             print("🎤 Listening... (speak now)")
@@ -148,35 +177,70 @@ class VoiceTerminal:
         if timeout is None:
             timeout = max_duration
             
-        try:
-            # Simple fixed-duration recording for reliability
-            samplerate = 44100
-            duration = min(timeout, 5)  # Max 5 seconds per recording
-            
-            if not silent_mode:
-                print(f"⏺️ Recording for {duration} seconds...", end="", flush=True)
-            recording = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=1)
-            sd.wait()  # Wait until recording is finished
-            if not silent_mode:
-                print("\r✅ Recording complete         ")
-            
-            # Check if there's actual audio (not just silence)
-            max_amplitude = float(recording.max())
-            # Higher threshold to avoid picking up TTS feedback
-            speech_threshold = max(threshold, 0.02)
-            
-            if max_amplitude > speech_threshold:
-                audio_file = self.temp_dir / "voice_input.wav"
-                sf.write(audio_file, recording, samplerate)
-                return str(audio_file)
-            else:
-                if not silent_mode:
-                    print("🔇 No speech detected")
-                return None
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Try to get default input device first
+                device_info = sd.query_devices(kind='input')
+                if device_info is None:
+                    raise Exception("No input device available")
                 
-        except Exception as e:
-            print(f"❌ Audio recording error: {e}")
-            return None
+                # Simple fixed-duration recording for reliability
+                samplerate = 44100
+                duration = min(timeout, 5)  # Max 5 seconds per recording
+                
+                if not silent_mode and attempt == 0:
+                    print(f"⏺️ Recording for {duration} seconds...", end="", flush=True)
+                
+                # Try recording with explicit device selection
+                recording = sd.rec(
+                    int(duration * samplerate), 
+                    samplerate=samplerate, 
+                    channels=1,
+                    device=None,  # Use default input device
+                    dtype='float64'
+                )
+                sd.wait()  # Wait until recording is finished
+                
+                if not silent_mode and attempt == 0:
+                    print("\r✅ Recording complete         ")
+                
+                # Check if there's actual audio (not just silence)
+                max_amplitude = float(recording.max())
+                # Higher threshold to avoid picking up TTS feedback
+                speech_threshold = max(threshold, 0.02)
+                
+                if max_amplitude > speech_threshold:
+                    audio_file = self.temp_dir / "voice_input.wav"
+                    sf.write(audio_file, recording, samplerate)
+                    return str(audio_file)
+                else:
+                    if not silent_mode:
+                        print("🔇 No speech detected")
+                    return None
+                    
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    if "PortAudio" in str(e) or "Internal PortAudio error" in str(e):
+                        # PortAudio error - try to reset audio system
+                        if not silent_mode:
+                            print(f"\r⚠️  Audio issue (attempt {attempt + 1}/{max_retries}), retrying...")
+                        time.sleep(0.5)
+                        # Try to reinitialize audio system
+                        try:
+                            sd._terminate()
+                            sd._initialize()
+                        except:
+                            pass
+                        continue
+                    else:
+                        print(f"❌ Audio recording error: {e}")
+                        return None
+                else:
+                    print(f"❌ Audio recording failed after {max_retries} attempts: {e}")
+                    return None
+        
+        return None
         
     def transcribe(self, audio_file):
         """Convert speech to text using cached Whisper model"""
@@ -515,8 +579,14 @@ class VoiceTerminal:
             print(f"🎯 Current target: {current_target}")
             return True
         
-        # Send arbitrary text to terminal
-        if any(phrase in query_lower for phrase in ["send text", "type", "say", "send", "write", "input"]):
+        # Send arbitrary text to terminal - improved parsing
+        text_sending_phrases = [
+            "send text", "type", "say", "send", "write", "input", "text",
+            # Multi-terminal variations
+            "text to terminal", "send to terminal", "type to terminal",
+            "write to terminal", "input to terminal", "send text to"
+        ]
+        if any(phrase in query_lower for phrase in text_sending_phrases):
             self.handle_send_text_command(query_lower)
             return True
             
@@ -622,9 +692,18 @@ class VoiceTerminal:
         # Parse the command to extract target and text
         target_terminal, text_to_send = self.parse_send_text_command(query)
         
+        # Debug output to help understand parsing
+        print(f"🔍 Parsed command - Target: '{target_terminal}', Text: '{text_to_send}'")
+        
         if not text_to_send:
-            self.speak("What text should I send?")
-            print("❓ No text specified to send")
+            if target_terminal:
+                self.speak(f"What text should I send to terminal {target_terminal}?")
+                print(f"❓ No text specified. Say 'send [your text] to terminal {target_terminal}'")
+                print(f"💡 Example: 'send hello world to terminal {target_terminal}'")
+            else:
+                self.speak("What text should I send?")
+                print("❓ No text specified. Say 'send [your text]' or specify a terminal")
+                print("💡 Example: 'send hello world' or 'send test to terminal 2'")
             return
         
         if target_terminal:
@@ -678,28 +757,82 @@ class VoiceTerminal:
     
     def parse_send_text_command(self, query):
         """Parse send text command to extract target and text"""
-        # Patterns: "send text hello to terminal 1", "type hello", "say hello to vs code"
+        # Patterns: "send text hello to terminal 1", "type hello", "say hello to vs code", "text hello to terminal 2"
         
-        # Remove command phrases
+        # Special case: handle "send text to terminal X" and "text to terminal X" patterns
+        if "to terminal" in query:
+            # Handle patterns like "send hello to terminal 1" vs "send text to terminal 1"
+            if " to terminal" in query:
+                parts = query.split(" to terminal", 1)
+                if len(parts) == 2:
+                    left_part = parts[0].strip()
+                    target_part = parts[1].strip().replace(".", "").strip()
+                    
+                    # Remove command phrases from left part
+                    text_content = left_part
+                    for phrase in ["send text", "send", "text", "type", "say", "write", "input"]:
+                        if text_content.startswith(phrase + " "):
+                            text_content = text_content[len(phrase):].strip()
+                            break
+                        elif text_content == phrase:
+                            text_content = ""
+                            break
+                    
+                    # If no text content remains, it was just "send text to terminal X"
+                    text_to_send = text_content if text_content else None
+                    return target_part, text_to_send
+        
+        # Comprehensive list of command phrases to remove for other patterns
+        command_phrases = [
+            "send text", "type", "say", "send", "write", "input", "text",
+            "send text to", "type to", "say to", "write to", "input to", "text to"
+        ]
+        
+        # Remove command phrases (longest match first)
         text_query = query
-        for phrase in ["send text", "type", "say", "send", "write", "input"]:
+        command_phrases.sort(key=len, reverse=True)
+        
+        for phrase in command_phrases:
             if phrase in text_query:
                 text_query = text_query.replace(phrase, "").strip()
                 break
         
-        # Check for target specification
+        # Check for target specification patterns
         target_terminal = None
         text_to_send = text_query
         
-        if " to terminal" in text_query or " to " in text_query:
+        # Pattern 1: "hello to terminal 2"
+        if " to terminal" in text_query:
+            parts = text_query.split(" to terminal", 1)
+            if len(parts) == 2:
+                text_to_send = parts[0].strip()
+                target_part = parts[1].strip()
+                # Extract just the number/name after "terminal"
+                target_terminal = target_part.replace(".", "").strip()
+        # Pattern 2: "hello to 2" or "hello to vscode"  
+        elif " to " in text_query:
             parts = text_query.split(" to ", 1)
             if len(parts) == 2:
                 text_to_send = parts[0].strip()
                 target_part = parts[1].strip()
-                
                 # Clean up target part
-                target_part = target_part.replace("terminal ", "").strip()
+                target_part = target_part.replace("terminal ", "").replace(".", "").strip()
                 target_terminal = target_part
+        # Pattern 3: "terminal 2 hello" (target first)
+        elif text_query.startswith("terminal "):
+            parts = text_query.split(" ", 2)
+            if len(parts) >= 3:
+                target_terminal = parts[1].strip()
+                text_to_send = " ".join(parts[2:]).strip()
+        
+        # If no text to send is specified, it might be an incomplete command
+        if not text_to_send and target_terminal:
+            # This is likely "text to terminal 2" without actual text - prompt for text
+            text_to_send = None
+        elif text_to_send and target_terminal:
+            # Check if the "text" is actually empty or just punctuation
+            if not text_to_send or text_to_send in [".", "!", "?", ","]:
+                text_to_send = None
         
         return target_terminal, text_to_send
     
