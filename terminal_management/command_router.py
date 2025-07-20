@@ -224,11 +224,12 @@ class CommandRouter:
                     "main session": "iTerm2",
                     "warp": "Warp:1",
                     "warp 1": "Warp:1",
-                    "warp 2": "Warp:2",
-                    "warp tab": "Warp:1",
-                    "test tab": "Warp:1",
-                    "test": "Warp:1"
+                    "warp 2": "Warp:2"
                 }
+                
+                # Check for any "[name] tab" pattern that should target Warp
+                if target_part.endswith(" tab") or target_part == "warp":
+                    return "Warp:1", command_part
                 
                 if target_part in target_aliases:
                     return target_aliases[target_part], command_part

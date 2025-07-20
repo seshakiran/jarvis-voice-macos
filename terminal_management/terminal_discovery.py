@@ -183,7 +183,9 @@ class TerminalDiscovery:
                 if terminal.window.app_type == TerminalApp.ITERM2:
                     return terminal
         
-        if name.lower() in ["warp", "test", "test tab", "warp tab"]:
+        # Check for Warp terminal references (any tab name + "tab" or just "warp")
+        name_parts = name.lower().split()
+        if "warp" in name_parts or (len(name_parts) >= 2 and "tab" in name_parts):
             for terminal in terminals:
                 if terminal.window.app_type == TerminalApp.WARP:
                     return terminal
