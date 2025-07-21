@@ -296,18 +296,17 @@ windows:
                         -- Focus on the specified window if multiple exist
                         if {window_number} > 1 then
                             if {window_number} <= count of windows then
-                                set frontmost to true
-                                perform action "AXRaise" of window {window_number}
-                                delay 0.3
+                                tell window {window_number}
+                                    set frontmost to true
+                                    delay 0.2
+                                end tell
                             end if
                         end if
                         
-                        -- Type the command
+                        -- Type the command and press enter
                         keystroke "{escaped_command}"
                         delay 0.1
-                        
-                        -- Press Enter
-                        key code 36
+                        key code 36  -- Enter key
                         
                         return "success"
                     on error errMsg
